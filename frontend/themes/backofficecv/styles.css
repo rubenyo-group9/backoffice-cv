@@ -1,0 +1,7 @@
+@import url('./main-layout.css');
+@import url('./views/trainers-view.css');
+@import url('./views/trainings-view.css');
+@import url('./views/certificates-view.css');
+@import url('./views/participants-view.css');
+@import url('./views/admin-view.css');
+@import url('line-awesome/dist/line-awesome/css/line-awesome.min.css');
