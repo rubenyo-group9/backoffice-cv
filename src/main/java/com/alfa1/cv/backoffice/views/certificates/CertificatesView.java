@@ -16,11 +16,11 @@ import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
-import com.vaadin.flow.component.textfield.EmailField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+
 import javax.annotation.security.PermitAll;
 
 @PageTitle("Certificates")
@@ -29,10 +29,10 @@ import javax.annotation.security.PermitAll;
 @Uses(Icon.class)
 public class CertificatesView extends Div {
 
-    private TextField firstName = new TextField("First name");
-    private TextField lastName = new TextField("Last name");
-    private EmailField email = new EmailField("Email address");
-    private DatePicker dateOfBirth = new DatePicker("Birthday");
+    private TextField trainers = new TextField("Trainers");
+    private TextField participant = new TextField("Participant");
+    private TextField training = new TextField("Training");
+    private DatePicker achievedAt = new DatePicker("Birthday");
     private PhoneNumberField phone = new PhoneNumberField("Phone number");
     private TextField occupation = new TextField("Occupation");
 
@@ -69,8 +69,7 @@ public class CertificatesView extends Div {
 
     private Component createFormLayout() {
         FormLayout formLayout = new FormLayout();
-        email.setErrorMessage("Please enter a valid email address");
-        formLayout.add(firstName, lastName, dateOfBirth, phone, email, occupation);
+//        formLayout.add(firstName, lastName, dateOfBirth, phone, email, occupation);
         return formLayout;
     }
 

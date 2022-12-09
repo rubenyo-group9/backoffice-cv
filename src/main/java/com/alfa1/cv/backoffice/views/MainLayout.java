@@ -90,7 +90,7 @@ public class MainLayout extends AppLayout {
 
         }
         if (accessChecker.hasAccess(AdminView.class)) {
-            nav.addItem(new AppNavItem("Admin", AdminView.class, "la la-user-check"));
+            nav.addItem(new AppNavItem("Admin", AdminView.class, "la la-user-cog"));
 
         }
 

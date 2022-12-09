@@ -1,27 +1,24 @@
 package com.alfa1.cv.backoffice.views.trainers;
 
-import com.alfa1.cv.backoffice.data.entity.SamplePerson;
-import com.alfa1.cv.backoffice.data.service.SamplePersonService;
+import com.alfa1.cv.backoffice.data.entity.Trainer;
+import com.alfa1.cv.backoffice.data.service.TrainerService;
 import com.alfa1.cv.backoffice.views.MainLayout;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.combobox.ComboBox;
-import com.vaadin.flow.component.customfield.CustomField;
-import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.dependency.Uses;
-import com.vaadin.flow.component.formlayout.FormLayout;
-import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.H3;
+import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.icon.Icon;
-import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
-import com.vaadin.flow.component.textfield.EmailField;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.data.binder.Binder;
+import com.vaadin.flow.data.renderer.ComponentRenderer;
+import com.vaadin.flow.data.renderer.LitRenderer;
+import com.vaadin.flow.data.renderer.Renderer;
+import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteAlias;
+
 import javax.annotation.security.PermitAll;
 
 @PageTitle("Trainers")
@@ -29,102 +26,116 @@ import javax.annotation.security.PermitAll;
 @RouteAlias(value = "", layout = MainLayout.class)
 @PermitAll
 @Uses(Icon.class)
-public class TrainersView extends Div {
+public class TrainersView extends VerticalLayout {
+    Grid<Trainer> grid = new Grid<>(Trainer.class);
+    TextField filterText = new TextField();
+    TrainerForm form;
+    TrainerService trainerService;
 
-    private TextField firstName = new TextField("First name");
-    private TextField lastName = new TextField("Last name");
-    private EmailField email = new EmailField("Email address");
-    private DatePicker dateOfBirth = new DatePicker("Birthday");
-    private PhoneNumberField phone = new PhoneNumberField("Phone number");
-    private TextField occupation = new TextField("Occupation");
+    public TrainersView(TrainerService trainerService) {
+        this.trainerService = trainerService;
+        addClassName("list-view");
+        setSizeFull();
+        configureGrid();
+        configureForm();
 
-    private Button cancel = new Button("Cancel");
-    private Button save = new Button("Save");
-
-    private Binder<SamplePerson> binder = new Binder<>(SamplePerson.class);
-
-    public TrainersView(SamplePersonService personService) {
-        addClassName("trainers-view");
-
-        add(createTitle());
-        add(createFormLayout());
-        add(createButtonLayout());
-
-        binder.bindInstanceFields(this);
-        clearForm();
-
-        cancel.addClickListener(e -> clearForm());
-        save.addClickListener(e -> {
-            personService.update(binder.getBean());
-            Notification.show(binder.getBean().getClass().getSimpleName() + " details stored.");
-            clearForm();
-        });
+        add(getToolbar(), getContent());
+        updateList();
+        closeEditor();
     }
 
-    private void clearForm() {
-        binder.setBean(new SamplePerson());
+    private Component getContent() {
+        HorizontalLayout content = new HorizontalLayout(grid, form);
+        content.setFlexGrow(2, grid);
+        content.setFlexGrow(1, form);
+        content.addClassNames("content");
+        content.setSizeFull();
+        return content;
     }
 
-    private Component createTitle() {
-        return new H3("Personal information");
+    private void configureForm() {
+        form = new TrainerForm();
+        form.setWidth("25em");
+
+        form.addListener(TrainerForm.SaveEvent.class, this::saveTrainer);
+        form.addListener(TrainerForm.DeleteEvent.class, this::deleteTrainer);
+        form.addListener(TrainerForm.CloseEvent.class, e -> closeEditor());
     }
 
-    private Component createFormLayout() {
-        FormLayout formLayout = new FormLayout();
-        email.setErrorMessage("Please enter a valid email address");
-        formLayout.add(firstName, lastName, dateOfBirth, phone, email, occupation);
-        return formLayout;
+    private void saveTrainer(TrainerForm.SaveEvent event) {
+        trainerService.addTrainer(event.getTrainer());
+        updateList();
+        closeEditor();
     }
 
-    private Component createButtonLayout() {
-        HorizontalLayout buttonLayout = new HorizontalLayout();
-        buttonLayout.addClassName("button-layout");
-        save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        buttonLayout.add(save);
-        buttonLayout.add(cancel);
-        return buttonLayout;
+    private void deleteTrainer(TrainerForm.DeleteEvent event) {
+        trainerService.deleteTrainer(event.getTrainer().getId());
+        updateList();
+        closeEditor();
     }
 
-    private static class PhoneNumberField extends CustomField<String> {
-        private ComboBox<String> countryCode = new ComboBox<>();
-        private TextField number = new TextField();
+    private void configureGrid() {
+        grid.addClassNames("trainer-grid");
+        grid.setSizeFull();
+        grid.setColumns("firstName", "lastName");
+        grid.getColumns().forEach(col -> col.setAutoWidth(true));
+        grid.addColumn(createToggleDetailsRenderer(grid));
 
-        public PhoneNumberField(String label) {
-            setLabel(label);
-            countryCode.setWidth("120px");
-            countryCode.setPlaceholder("Country");
-            countryCode.setAllowedCharPattern("[\\+\\d]");
-            countryCode.setItems("+354", "+91", "+62", "+98", "+964", "+353", "+44", "+972", "+39", "+225");
-            countryCode.addCustomValueSetListener(e -> countryCode.setValue(e.getDetail()));
-            number.setAllowedCharPattern("\\d");
-            HorizontalLayout layout = new HorizontalLayout(countryCode, number);
-            layout.setFlexGrow(1.0, number);
-            add(layout);
+        grid.setDetailsVisibleOnClick(false);
+        grid.setItemDetailsRenderer(createTrainerDetailsRenderer());
+
+        grid.asSingleSelect().addValueChangeListener(event -> editTrainer(event.getValue()));
+    }
+
+    private static Renderer<Trainer> createToggleDetailsRenderer(
+            Grid<Trainer> grid) {
+        return LitRenderer.<Trainer>of(
+                        "<vaadin-button theme=\"tertiary\" @click=\"${handleClick}\">Toggle details</vaadin-button>")
+                .withFunction("handleClick",
+                        trainer -> grid.setDetailsVisible(trainer, !grid.isDetailsVisible(trainer)));
+    }
+
+    private static ComponentRenderer<TrainerDetails, Trainer> createTrainerDetailsRenderer() {
+        return new ComponentRenderer<>(TrainerDetails::new,
+                TrainerDetails::setTrainer);
+    }
+
+    private HorizontalLayout getToolbar() {
+        filterText.setPlaceholder("Filter by name...");
+        filterText.setClearButtonVisible(true);
+        filterText.setValueChangeMode(ValueChangeMode.LAZY);
+        filterText.addValueChangeListener(e -> updateList());
+
+        Button addTrainerButton = new Button("Add trainer");
+        addTrainerButton.addClickListener(click -> addTrainer());
+
+        HorizontalLayout toolbar = new HorizontalLayout(filterText, addTrainerButton);
+        toolbar.addClassName("toolbar");
+        return toolbar;
+    }
+
+    public void editTrainer(Trainer trainer) {
+        if (trainer == null) {
+            closeEditor();
+        } else {
+            form.setTrainer(trainer);
+            form.setVisible(true);
+            addClassName("editing");
         }
-
-        @Override
-        protected String generateModelValue() {
-            if (countryCode.getValue() != null && number.getValue() != null) {
-                String s = countryCode.getValue() + " " + number.getValue();
-                return s;
-            }
-            return "";
-        }
-
-        @Override
-        protected void setPresentationValue(String phoneNumber) {
-            String[] parts = phoneNumber != null ? phoneNumber.split(" ", 2) : new String[0];
-            if (parts.length == 1) {
-                countryCode.clear();
-                number.setValue(parts[0]);
-            } else if (parts.length == 2) {
-                countryCode.setValue(parts[0]);
-                number.setValue(parts[1]);
-            } else {
-                countryCode.clear();
-                number.clear();
-            }
-        }
     }
 
+    private void closeEditor() {
+        form.setTrainer(null);
+        form.setVisible(false);
+        removeClassName("editing");
+    }
+
+    private void addTrainer() {
+        grid.asSingleSelect().clear();
+        editTrainer(new Trainer());
+    }
+
+    private void updateList() {
+        grid.setItems(trainerService.getTrainers());
+    }
 }

@@ -1,128 +1,121 @@
 package com.alfa1.cv.backoffice.views.participants;
 
-import com.alfa1.cv.backoffice.data.entity.SamplePerson;
-import com.alfa1.cv.backoffice.data.service.SamplePersonService;
+import com.alfa1.cv.backoffice.data.entity.Participant;
+import com.alfa1.cv.backoffice.data.service.ParticipantService;
 import com.alfa1.cv.backoffice.views.MainLayout;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.combobox.ComboBox;
-import com.vaadin.flow.component.customfield.CustomField;
-import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.dependency.Uses;
-import com.vaadin.flow.component.formlayout.FormLayout;
-import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.H3;
+import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.icon.Icon;
-import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
-import com.vaadin.flow.component.textfield.EmailField;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.data.binder.Binder;
+import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+
 import javax.annotation.security.PermitAll;
 
 @PageTitle("Participants")
 @Route(value = "participants", layout = MainLayout.class)
 @PermitAll
 @Uses(Icon.class)
-public class ParticipantsView extends Div {
+public class ParticipantsView extends VerticalLayout {
+    Grid<Participant> grid = new Grid<>(Participant.class);
+    TextField filterText = new TextField();
+    ParticipantForm form;
+    ParticipantService participantService;
 
-    private TextField firstName = new TextField("First name");
-    private TextField lastName = new TextField("Last name");
-    private EmailField email = new EmailField("Email address");
-    private DatePicker dateOfBirth = new DatePicker("Birthday");
-    private PhoneNumberField phone = new PhoneNumberField("Phone number");
-    private TextField occupation = new TextField("Occupation");
+    public ParticipantsView(ParticipantService participantService) {
+        this.participantService = participantService;
+        addClassName("list-view");
+        setSizeFull();
+        configureGrid();
+        configureForm();
 
-    private Button cancel = new Button("Cancel");
-    private Button save = new Button("Save");
-
-    private Binder<SamplePerson> binder = new Binder<>(SamplePerson.class);
-
-    public ParticipantsView(SamplePersonService personService) {
-        addClassName("participants-view");
-
-        add(createTitle());
-        add(createFormLayout());
-        add(createButtonLayout());
-
-        binder.bindInstanceFields(this);
-        clearForm();
-
-        cancel.addClickListener(e -> clearForm());
-        save.addClickListener(e -> {
-            personService.update(binder.getBean());
-            Notification.show(binder.getBean().getClass().getSimpleName() + " details stored.");
-            clearForm();
-        });
+        add(getToolbar(), getContent());
+        updateList();
+        closeEditor();
     }
 
-    private void clearForm() {
-        binder.setBean(new SamplePerson());
+    private Component getContent() {
+        HorizontalLayout content = new HorizontalLayout(grid, form);
+        content.setFlexGrow(2, grid);
+        content.setFlexGrow(1, form);
+        content.addClassNames("content");
+        content.setSizeFull();
+        return content;
     }
 
-    private Component createTitle() {
-        return new H3("Personal information");
+    private void configureForm() {
+        form = new ParticipantForm();
+        form.setWidth("25em");
+
+        form.addListener(ParticipantForm.SaveEvent.class, this::saveParticipant);
+        form.addListener(ParticipantForm.DeleteEvent.class, this::deleteParticipant);
+        form.addListener(ParticipantForm.CloseEvent.class, e -> closeEditor());
     }
 
-    private Component createFormLayout() {
-        FormLayout formLayout = new FormLayout();
-        email.setErrorMessage("Please enter a valid email address");
-        formLayout.add(firstName, lastName, dateOfBirth, phone, email, occupation);
-        return formLayout;
+    private void saveParticipant(ParticipantForm.SaveEvent event) {
+        participantService.addParticipant(event.getParticipant());
+        updateList();
+        closeEditor();
     }
 
-    private Component createButtonLayout() {
-        HorizontalLayout buttonLayout = new HorizontalLayout();
-        buttonLayout.addClassName("button-layout");
-        save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        buttonLayout.add(save);
-        buttonLayout.add(cancel);
-        return buttonLayout;
+    private void deleteParticipant(ParticipantForm.DeleteEvent event) {
+        participantService.deleteParticipant(event.getParticipant());
+        updateList();
+        closeEditor();
     }
 
-    private static class PhoneNumberField extends CustomField<String> {
-        private ComboBox<String> countryCode = new ComboBox<>();
-        private TextField number = new TextField();
+    private void configureGrid() {
+        grid.addClassNames("participant-grid");
+        grid.setSizeFull();
+        grid.setColumns("firstName", "lastName", "dateOfBirth", "email", "linkedInUrl");
+        grid.getColumns().forEach(col -> col.setAutoWidth(true));
 
-        public PhoneNumberField(String label) {
-            setLabel(label);
-            countryCode.setWidth("120px");
-            countryCode.setPlaceholder("Country");
-            countryCode.setAllowedCharPattern("[\\+\\d]");
-            countryCode.setItems("+354", "+91", "+62", "+98", "+964", "+353", "+44", "+972", "+39", "+225");
-            countryCode.addCustomValueSetListener(e -> countryCode.setValue(e.getDetail()));
-            number.setAllowedCharPattern("\\d");
-            HorizontalLayout layout = new HorizontalLayout(countryCode, number);
-            layout.setFlexGrow(1.0, number);
-            add(layout);
-        }
+        grid.setDetailsVisibleOnClick(false);
 
-        @Override
-        protected String generateModelValue() {
-            if (countryCode.getValue() != null && number.getValue() != null) {
-                String s = countryCode.getValue() + " " + number.getValue();
-                return s;
-            }
-            return "";
-        }
+        grid.asSingleSelect().addValueChangeListener(event -> editParticipant(event.getValue()));
+    }
 
-        @Override
-        protected void setPresentationValue(String phoneNumber) {
-            String[] parts = phoneNumber != null ? phoneNumber.split(" ", 2) : new String[0];
-            if (parts.length == 1) {
-                countryCode.clear();
-                number.setValue(parts[0]);
-            } else if (parts.length == 2) {
-                countryCode.setValue(parts[0]);
-                number.setValue(parts[1]);
-            } else {
-                countryCode.clear();
-                number.clear();
-            }
+    private HorizontalLayout getToolbar() {
+        filterText.setPlaceholder("Filter by name...");
+        filterText.setClearButtonVisible(true);
+        filterText.setValueChangeMode(ValueChangeMode.LAZY);
+        filterText.addValueChangeListener(e -> updateList());
+
+        Button addParticipantButton = new Button("Add participant");
+        addParticipantButton.addClickListener(click -> addParticipant());
+
+        HorizontalLayout toolbar = new HorizontalLayout(filterText, addParticipantButton);
+        toolbar.addClassName("toolbar");
+        return toolbar;
+    }
+
+    public void editParticipant(Participant participant) {
+        if (participant == null) {
+            closeEditor();
+        } else {
+            form.setParticipant(participant);
+            form.setVisible(true);
+            addClassName("editing");
         }
     }
 
+    private void closeEditor() {
+        form.setParticipant(null);
+        form.setVisible(false);
+        removeClassName("editing");
+    }
+
+    private void addParticipant() {
+        grid.asSingleSelect().clear();
+        editParticipant(new Participant());
+    }
+
+    private void updateList() {
+        grid.setItems(participantService.getParticipants());
+    }
 }
